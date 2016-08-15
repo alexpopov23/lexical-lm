@@ -287,6 +287,7 @@ if __name__ == "__main__":
         # Load pretrained embeddings
         #session.run(embedding_init, feed_dict={embedding_placeholder: src_embeddings})
         print('Initialized')
+        saver = tf.train.Saver()
         for step in range(training_iters):
             offset = (step * batch_size) % (len(training_data_list) - batch_size)
             batch_input, batch_labels, batch_seq_length = new_batch(offset)
@@ -296,9 +297,11 @@ if __name__ == "__main__":
             if (step % 50 == 0):
               print 'Minibatch loss at step ' + str(step) + ': ' + str(l)
               print 'Minibatch accuracy: ' + str(accuracy(predictions, _labels))
-              print 'Validation accuracy: ' + str(accuracy(
-                valid_prediction_sampled.eval(), valid_labels_sampled.eval()))
+              print 'Validation accuracy: ' + str(accuracy(valid_prediction_sampled.eval(), valid_labels_sampled.eval()))
+              if (args.save_path != "None"):
+                saver.save(session, os.path.join(args.save_path, "model.ckpt"), global_step=step)
+
+
         print 'Test accuracy: ' + str(accuracy(test_prediction_sampled.eval(), test_labels_sampled.eval()))
-        if (args.save_path != "None"):
-            model.saver.save(session, os.path.join(args.save_path, "model.ckpt"), global_step=model.step)
-            tf.train.Saver
+        #if (args.save_path != "None"):
+        #    model.saver.save(session, os.path.join(args.save_path, "model.ckpt"), global_step=model.step)
