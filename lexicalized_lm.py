@@ -1,10 +1,11 @@
 import argparse
 import random
+import os
 
 import tensorflow as tf
 from tensorflow.python.ops.nn_ops import *
 import numpy as np
-import gensim
+#import gensim
 
 import word2vec_optimized_utf8 as w2v
 import data_reader
@@ -42,6 +43,8 @@ if __name__ == "__main__":
     #                    help='Size of the words in the target language.')
     parser.add_argument('-training_data', dest='training_data', required=True, default="brown",
                         help='The path to the gold corpus used for training/testing.')
+    parser.add_argument('-save_path', dest='save_path', required=False, default="None",
+                        help='Path to where the model should be saved.')
 
     args = parser.parse_args()
 
@@ -99,12 +102,12 @@ if __name__ == "__main__":
     data = data_reader.get_data(data)
     random.shuffle(data)
     # number of sentences in the data is 727020
-    valid_data_list = data[:1000]
-    test_data_list = data[1000:2000]
-    training_data_list = data[2000:]
+    valid_data_list = data[:500]
+    test_data_list = data[500:1000]
+    training_data_list = data[1000:]
 
-    valid_input, valid_output, valid_seq_length = format_data.format_data(valid_data_list, seq_width, src2id, target2id)
-    test_input, test_output, test_seq_length = format_data.format_data(valid_data_list, seq_width, src2id, target2id)
+    valid_input, valid_labels, valid_seq_length = format_data.format_data(valid_data_list, seq_width, src2id, target2id)
+    test_input, test_labels, test_seq_length = format_data.format_data(valid_data_list, seq_width, src2id, target2id)
 
     #TODO: Get a dictionary from source language lemmas to target language lemmas
     #src2target = dictionary_builder.get_alignment_dictionaty(data, src2id, target2id)
@@ -126,12 +129,17 @@ if __name__ == "__main__":
         #embedding_init = W.assign(embedding_placeholder)
 
         tf_train_dataset = tf.placeholder(tf.int64, [batch_size, seq_width])
-        tf_train_gold = tf.placeholder(tf.int64, [batch_size, seq_width])
+        tf_train_labels = tf.placeholder(tf.int64, [batch_size, seq_width])
         tf_train_seq_length = tf.placeholder(tf.int64, [batch_size])
         tf_valid_dataset = tf.constant(valid_input, tf.int64)
+        tf_valid_labels = tf.constant(valid_labels, tf.int64)
         tf_valid_seq_length = tf.constant(valid_seq_length, tf.int64)
         tf_test_dataset = tf.constant(test_input, tf.int64)
+        tf_test_labels = tf.constant(test_labels, tf.int64)
         tf_test_seq_length = tf.constant(test_seq_length, tf.int64)
+
+        valid_labels_reshaped = tf.reshape(tf.transpose(valid_labels, [1, 0]), [-1, 1])
+        test_labels_reshaped = tf.reshape(tf.transpose(tf_test_labels, [1, 0]), [-1, 1])
 
         train_embeddings = tf.nn.embedding_lookup(W, tf_train_dataset)
         valid_embeddings = tf.nn.embedding_lookup(W, tf_test_dataset)
@@ -152,7 +160,7 @@ if __name__ == "__main__":
         #}
 
         # Bidirectional recurrent neural network with LSTM cells
-        def BiRNN (inputs, _seq_length):
+        def BiRNN (inputs, _seq_length, compute_logits=False):
 
             # input shape: (batch_size, seq_width, embedding_size) ==> (seq_width, batch_size, embedding_size)
             inputs = tf.transpose(inputs, [1, 0, 2])
@@ -183,12 +191,17 @@ if __name__ == "__main__":
             #        logits_word = tf.matmul(outputs[i][j],weights[input_word_id]) + biases[input_word_id]
             #        logits_sent.append(logits_word)
             #   logits.append(logits_sent)
-            for i in xrange(len(outputs)):
-                final_transformed_val = tf.matmul(outputs[i],w) + b
-                logits.append(final_transformed_val)
-            logits = tf.reshape(tf.concat(0, logits), [-1, target_vocab_size])
 
-            return logits, outputs_tensor
+            # Compute logits across the whole vocabulary (slow for large dictionaries)
+            if compute_logits==True:
+                for i in xrange(len(outputs)):
+                    final_transformed_val = tf.matmul(outputs[i],w) + b
+                    logits.append(final_transformed_val)
+                logits = tf.reshape(tf.concat(0, logits), [-1, target_vocab_size])
+
+                return logits, outputs_tensor
+            else:
+                return outputs_tensor
 
         def calculate_logits (inputs):
             logits = []
@@ -203,7 +216,7 @@ if __name__ == "__main__":
         b = tf.get_variable("proj_b", [target_vocab_size])
 
         with tf.variable_scope("BiRNN") as scope:
-            _, _outputs_tensor = BiRNN(train_embeddings, tf_train_seq_length)
+            _outputs_tensor = BiRNN(train_embeddings, tf_train_seq_length)
             w = tf.get_variable("proj_w", [2*n_hidden, target_vocab_size])
             w_t = tf.transpose(w)
             b = tf.get_variable("proj_b", [target_vocab_size])
@@ -213,7 +226,7 @@ if __name__ == "__main__":
             #  tf.nn.softmax_cross_entropy_with_logits(
             #    logits, tf.reshape(tf.transpose(tf_train_gold, [1,0,2]), [-1, target_vocab_size])))
             # Define the weights for the hidden layer before the softmax (logits)
-            train_gold_reshaped = tf.reshape(tf.transpose(tf_train_gold, [1,0]), [-1, 1])
+            train_gold_reshaped = tf.reshape(tf.transpose(tf_train_labels, [1,0]), [-1, 1])
             logits, labels = tf.nn._compute_sampled_logits(w_t, b, _outputs_tensor, train_gold_reshaped, 200,
                                                            target_vocab_size)
             #tf.reshape(tf.transpose(tf_train_labels, [1,0,2]), [-1, n_classes]))
@@ -232,29 +245,38 @@ if __name__ == "__main__":
             optimizer_t = optimizer.apply_gradients(capped_gradients)
 
             # Predictions for the training, validation, and test data.
+            #train_prediction = tf.nn.softmax(logits)
+            #valid_prediction = tf.nn.softmax(BiRNN(valid_embeddings, tf_valid_seq_length)[0])
+            #test_prediction = tf.nn.softmax(BiRNN(test_embeddings, tf_test_seq_length)[0])
             train_prediction = tf.nn.softmax(logits)
-            valid_prediction = tf.nn.softmax(BiRNN(valid_embeddings, tf_valid_seq_length)[0])
-            test_prediction = tf.nn.softmax(BiRNN(test_embeddings, tf_test_seq_length)[0])
+            valid_outputs = BiRNN(valid_embeddings, tf_valid_seq_length)
+            valid_logits_sampled, valid_labels_sampled = tf.nn._compute_sampled_logits(w_t, b, valid_outputs, valid_labels_reshaped,
+                                                                           200, target_vocab_size)
+            valid_prediction_sampled = tf.nn.softmax(valid_logits_sampled)
+            test_outputs = BiRNN(test_embeddings, tf_test_seq_length)
+            test_logits_sampled, test_labels_sampled = tf.nn._compute_sampled_logits(w_t, b, valid_outputs, test_labels_reshaped,
+                                                                           200, target_vocab_size)
+            test_prediction_sampled = tf.nn.softmax(test_logits_sampled)
 
     # Create a new batch from the training data (data, labels and sequence lengths)
     def new_batch (offset):
 
         batch = training_data_list[offset:(offset+batch_size)]
-        train_input, train_gold, seq_length = format_data.format_data(batch, seq_width, src2id, target2id)
-        return train_input, train_gold, seq_length
+        train_input, train_labels, seq_length = format_data.format_data(batch, seq_width, src2id, target2id)
+        return train_input, train_labels, seq_length
 
     # Function to calculate the accuracy on a batch of results and gold labels '''
     def accuracy (predictions, labels):
 
-        reshaped_labels = np.reshape(np.transpose(labels, (1,0)), (-1,1))
+        #reshaped_labels = np.reshape(np.transpose(labels, (1,0)), (-1,1))
         matching_cases = 0
         eval_cases = 0
         # Do not count results beyond the end of a sentence (in the case of sentences shorter than 50 words)
-        for i in xrange(reshaped_labels.shape[0]):
+        for i in xrange(predictions.shape[0]):
             # If all values in a gold POS label are zeros, skip this calculation
-            if max(reshaped_labels[i]) == 0:
+            if max(labels[i]) == 0:
                 continue
-            if np.argmax(reshaped_labels[i]) == np.argmax(predictions[i]):
+            if np.argmax(labels[i]) == np.argmax(predictions[i]):
                 matching_cases+=1
             eval_cases+=1
         return (100.0 * matching_cases) / eval_cases
@@ -267,13 +289,16 @@ if __name__ == "__main__":
         print('Initialized')
         for step in range(training_iters):
             offset = (step * batch_size) % (len(training_data_list) - batch_size)
-            batch_input, batch_gold, batch_seq_length = new_batch(offset)
-            feed_dict = {tf_train_dataset : batch_input, tf_train_gold : batch_gold, tf_train_seq_length: batch_seq_length}
-            _, l, predictions, outputs_tensor = session.run(
-              [optimizer_t, sampled_loss, train_prediction, _outputs_tensor], feed_dict=feed_dict)
+            batch_input, batch_labels, batch_seq_length = new_batch(offset)
+            feed_dict = {tf_train_dataset : batch_input, tf_train_labels : batch_labels, tf_train_seq_length: batch_seq_length}
+            _, l, predictions, _labels = session.run(
+              [optimizer_t, sampled_loss, train_prediction, labels], feed_dict=feed_dict)
             if (step % 50 == 0):
               print 'Minibatch loss at step ' + str(step) + ': ' + str(l)
-              print 'Minibatch accuracy: ' + str(accuracy(predictions, batch_gold))
+              print 'Minibatch accuracy: ' + str(accuracy(predictions, _labels))
               print 'Validation accuracy: ' + str(accuracy(
-                valid_prediction.eval(), valid_prediction))
-        print 'Test accuracy: ' + str(accuracy(test_prediction.eval(), test_prediction))
+                valid_prediction_sampled.eval(), valid_labels_sampled.eval()))
+        print 'Test accuracy: ' + str(accuracy(test_prediction_sampled.eval(), test_labels_sampled.eval()))
+        if (args.save_path != "None"):
+            model.saver.save(session, os.path.join(args.save_path, "model.ckpt"), global_step=model.step)
+            tf.train.Saver
