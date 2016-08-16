@@ -1,6 +1,7 @@
 import argparse
 import random
 import os
+import pickle
 
 import tensorflow as tf
 from tensorflow.python.ops.nn_ops import *
@@ -15,6 +16,8 @@ import dictionary_builder
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(version='1.0',description='Train a neural POS tagger.')
+    parser.add_argument('-train', dest='train', required=False, default=True,
+                        help='Indicate whether the model shoul run in train or application mode.')
     parser.add_argument('-use_word_embeddings', dest='use_word_embeddings', required=True,
                         help='State whether word embeddings should be used as input.')
     parser.add_argument('-word_embeddings_src_model', dest='word_embeddings_src_save_path', required=False,
@@ -64,6 +67,7 @@ if __name__ == "__main__":
         else:
             print("No valid checkpoint to reload a model was found!")
         src2id = model._word2id
+        id2src = model._id2word
         src_embeddings = session.run(model._w_in)
         src_embeddings = tf.nn.l2_normalize(src_embeddings, 1).eval()
 
@@ -81,6 +85,7 @@ if __name__ == "__main__":
         else:
             print("No valid checkpoint to reload a model was found!")
         target2id = model._word2id
+        id2target = model._id2word
         target_embeddings = session.run(model._w_in)
         target_embeddings = tf.nn.l2_normalize(target_embeddings, 1).eval()
 
@@ -300,7 +305,14 @@ if __name__ == "__main__":
               print 'Validation accuracy: ' + str(accuracy(valid_prediction_sampled.eval(), valid_labels_sampled.eval()))
               if (args.save_path != "None"):
                 saver.save(session, os.path.join(args.save_path, "model.ckpt"), global_step=step)
-
+                with open(os.path.join(args.save_path, 'src2id.pkl'), 'wb') as output:
+                    pickle.dump(src2id, output, pickle.HIGHEST_PROTOCOL)
+                with open(os.path.join(args.save_path, 'id2src.pkl'), 'wb') as output:
+                    pickle.dump(id2src, output, pickle.HIGHEST_PROTOCOL)
+                with open(os.path.join(args.save_path, 'target2id.pkl'), 'wb') as output:
+                    pickle.dump(target2id, output, pickle.HIGHEST_PROTOCOL)
+                with open(os.path.join(args.save_path, 'id2target.pkl'), 'wb') as output:
+                    pickle.dump(id2target, output, pickle.HIGHEST_PROTOCOL)
 
         print 'Test accuracy: ' + str(accuracy(test_prediction_sampled.eval(), test_labels_sampled.eval()))
         #if (args.save_path != "None"):

@@ -16,3 +16,12 @@ def get_data(path):
                 print "Couldn't merge source and target sentences.\n" + "Source: " + source +\
                       "\nTarget: " + target
     return training_data
+
+def get_data_app(path):
+    with open(path, "r") as corpus:
+        sents = corpus.read().split("@@@")
+        data = []
+        for sent in sents:
+            words = sent.split(" ")
+            data.append(words)
+    return data
