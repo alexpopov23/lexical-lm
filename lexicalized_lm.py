@@ -234,6 +234,17 @@ if __name__ == "__main__":
             train_gold_reshaped = tf.reshape(tf.transpose(tf_train_labels, [1,0]), [-1, 1])
             logits, labels = tf.nn._compute_sampled_logits(w_t, b, _outputs_tensor, train_gold_reshaped, 200,
                                                            target_vocab_size)
+            '''
+            #TODO: Ugly hack, should be a more efficient way to do it.
+            # This block nullifies all vectors corresponding to empty sentence positions
+            empty_vector = 2*n_hidden * [0.0]
+            for i in xrange(seq_width):
+                for j in xrange(batch_size):
+                    if i+1 > tf_train_seq_length[j]:
+                        logits[i*batch_size + j] = empty_vector
+                        labels[i*batch_size + j] = empty_vector
+            '''
+
             #tf.reshape(tf.transpose(tf_train_labels, [1,0,2]), [-1, n_classes]))
             sampled_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, labels))
             #loss = tf.reduce_mean(tf.nn.sampled_softmax_loss(w_t, b, tf_train_dataset, tf_train_gold, 200,
@@ -271,19 +282,23 @@ if __name__ == "__main__":
         return train_input, train_labels, seq_length
 
     # Function to calculate the accuracy on a batch of results and gold labels '''
-    def accuracy (predictions, labels):
+    def accuracy (predictions, labels, seq_lengths):
 
         #reshaped_labels = np.reshape(np.transpose(labels, (1,0)), (-1,1))
         matching_cases = 0
         eval_cases = 0
         # Do not count results beyond the end of a sentence (in the case of sentences shorter than 50 words)
-        for i in xrange(predictions.shape[0]):
-            # If all values in a gold POS label are zeros, skip this calculation
-            if max(labels[i]) == 0:
-                continue
-            if np.argmax(labels[i]) == np.argmax(predictions[i]):
-                matching_cases+=1
-            eval_cases+=1
+        #for i in xrange(predictions.shape[0]):
+        for i in xrange(seq_width):
+            for j in xrange(batch_size):
+                if i+1 > seq_lengths[j]:
+                    continue
+                # If all values in a gold POS label are zeros, skip this calculation
+                #if max(labels[i]) == 0:
+                #    continue
+                if np.argmax(labels[i*batch_size + j]) == np.argmax(predictions[i*batch_size + j]):
+                    matching_cases+=1
+                eval_cases+=1
         return (100.0 * matching_cases) / eval_cases
 
     # Run the tensorflow graph
@@ -297,12 +312,12 @@ if __name__ == "__main__":
             offset = (step * batch_size) % (len(training_data_list) - batch_size)
             batch_input, batch_labels, batch_seq_length = new_batch(offset)
             feed_dict = {tf_train_dataset : batch_input, tf_train_labels : batch_labels, tf_train_seq_length: batch_seq_length}
-            _, l, predictions, _labels = session.run(
-              [optimizer_t, sampled_loss, train_prediction, labels], feed_dict=feed_dict)
-            if (step % 50 == 0):
+            _, l, predictions, _outputs, _logits, _labels = session.run(
+              [optimizer_t, sampled_loss, train_prediction, _outputs_tensor, logits, labels], feed_dict=feed_dict)
+            if (step % 1000 == 0):
               print 'Minibatch loss at step ' + str(step) + ': ' + str(l)
-              print 'Minibatch accuracy: ' + str(accuracy(predictions, _labels))
-              print 'Validation accuracy: ' + str(accuracy(valid_prediction_sampled.eval(), valid_labels_sampled.eval()))
+              print 'Minibatch accuracy: ' + str(accuracy(predictions, _labels, batch_seq_length))
+              print 'Validation accuracy: ' + str(accuracy(valid_prediction_sampled.eval(), valid_labels_sampled.eval(), valid_seq_length))
               if (args.save_path != "None"):
                 saver.save(session, os.path.join(args.save_path, "model.ckpt"), global_step=step)
                 with open(os.path.join(args.save_path, 'src2id.pkl'), 'wb') as output:
@@ -314,6 +329,6 @@ if __name__ == "__main__":
                 with open(os.path.join(args.save_path, 'id2target.pkl'), 'wb') as output:
                     pickle.dump(id2target, output, pickle.HIGHEST_PROTOCOL)
 
-        print 'Test accuracy: ' + str(accuracy(test_prediction_sampled.eval(), test_labels_sampled.eval()))
+        print 'Test accuracy: ' + str(accuracy(test_prediction_sampled.eval(), test_labels_sampled.eval(), test_seq_length))
         #if (args.save_path != "None"):
         #    model.saver.save(session, os.path.join(args.save_path, "model.ckpt"), global_step=model.step)

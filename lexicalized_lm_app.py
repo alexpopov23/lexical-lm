@@ -18,8 +18,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(version='1.0',description='Train a neural POS tagger.')
     parser.add_argument('-train', dest='train', required=False, default=True,
                         help='Indicate whether the model shoul run in train or application mode.')
-    parser.add_argument('-use_word_embeddings', dest='use_word_embeddings', required=True,
-                        help='State whether word embeddings should be used as input.')
+    #parser.add_argument('-use_word_embeddings', dest='use_word_embeddings', required=True,
+    #                    help='State whether word embeddings should be used as input.')
     parser.add_argument('-word_embeddings_src_model', dest='word_embeddings_src_save_path', required=False,
                         help='The path to the pretrained model with the word embeddings (for the source language).')
     parser.add_argument('-word_embeddings_src_train_data', dest='word_embeddings_src_train_data', required=False,
@@ -40,10 +40,6 @@ if __name__ == "__main__":
                         help='Size of the hidden layer.')
     parser.add_argument('-sequence_width', dest='seq_width', required=False, default=50,
                         help='Maximum length of a sentence to be passed to the network (the rest is cut off).')
-    #parser.add_argument('-source_vocab_size', dest='source_vocab_size', required=True,
-    #                    help='Size of the words in the source language.')
-    #parser.add_argument('-target_vocab_size', dest='target_vocab_size', required=True,
-    #                    help='Size of the words in the target language.')
     parser.add_argument('-data', dest='data', required=False, default="brown",
                         help='The path to the gold corpus used for training/testing OR to the data to be processed.')
     parser.add_argument('-save_path', dest='save_path', required=False, default="None",
@@ -343,7 +339,7 @@ if __name__ == "__main__":
             #if (args.save_path != "None"):
             #    model.saver.save(session, os.path.join(args.save_path, "model.ckpt"), global_step=model.step)
         else:
-            saver.restore(session, os.path.join(args.save_path, "model.ckpt"))
+            saver.restore(session, os.path.join(args.save_path, "model.ckpt-350"))
             sents = []
             _inputs, _seq_length = format_data.format_data_app(app_data_list, seq_width, src2id)
             for i in range(_inputs.shape[0]):
