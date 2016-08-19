@@ -22,6 +22,7 @@ def get_data_app(path):
         sents = corpus.read().split("@@@")
         data = []
         for sent in sents:
+            sent = sent.strip()
             words = sent.split(" ")
             data.append(words)
     return data
