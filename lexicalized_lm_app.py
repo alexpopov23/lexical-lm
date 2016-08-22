@@ -279,7 +279,7 @@ if __name__ == "__main__":
                                                                                200, target_vocab_size)
                 test_prediction_sampled = tf.nn.softmax(test_logits_sampled)
             else:
-                _logits = BiRNN(input_embeddings, input_length)
+                _logits = BiRNN(input_embeddings, input_length, compute_logits=True)[0]
                 predictions = tf.nn.softmax(_logits)
 
     # Create a new batch from the training data (data, labels and sequence lengths)
@@ -339,7 +339,7 @@ if __name__ == "__main__":
             #if (args.save_path != "None"):
             #    model.saver.save(session, os.path.join(args.save_path, "model.ckpt"), global_step=model.step)
         else:
-            saver.restore(session, os.path.join(args.save_path, "model.ckpt-350"))
+            saver.restore(session, os.path.join(args.save_path, "model.ckpt-3000"))
             sents = []
             _inputs, _seq_length = format_data.format_data_app(app_data_list, seq_width, src2id)
             for i in range(_inputs.shape[0]):

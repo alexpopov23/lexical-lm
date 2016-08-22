@@ -40,6 +40,8 @@ if __name__ == "__main__":
                         help='Size of the hidden layer.')
     parser.add_argument('-sequence_width', dest='seq_width', required=False, default=50,
                         help='Maximum length of a sentence to be passed to the network (the rest is cut off).')
+    parser.add_argument('-num_sampled', dest='num_sampled', required=False, default=500,
+                        help='Number of sampled classed for the sampled softmax computation.')
     #parser.add_argument('-source_vocab_size', dest='source_vocab_size', required=True,
     #                    help='Size of the words in the source language.')
     #parser.add_argument('-target_vocab_size', dest='target_vocab_size', required=True,
@@ -95,6 +97,7 @@ if __name__ == "__main__":
     batch_size = int(args.batch_size) # Number of sentences passed to the network in one batch
     seq_width = int(args.seq_width) # Max sentence length (longer sentences are cut to this length)
     n_hidden = int(args.n_hidden) # Number of features/neurons in the hidden layer
+    num_sampled = int(args.num_sampled)
     embedding_size = word_embedding_size
     source_vocab_size = len(src2id)
     target_vocab_size = len(target2id)
@@ -232,7 +235,7 @@ if __name__ == "__main__":
             #    logits, tf.reshape(tf.transpose(tf_train_gold, [1,0,2]), [-1, target_vocab_size])))
             # Define the weights for the hidden layer before the softmax (logits)
             train_gold_reshaped = tf.reshape(tf.transpose(tf_train_labels, [1,0]), [-1, 1])
-            logits, labels = tf.nn._compute_sampled_logits(w_t, b, _outputs_tensor, train_gold_reshaped, 200,
+            logits, labels = tf.nn._compute_sampled_logits(w_t, b, _outputs_tensor, train_gold_reshaped, num_sampled,
                                                            target_vocab_size)
             '''
             #TODO: Ugly hack, should be a more efficient way to do it.
@@ -266,12 +269,16 @@ if __name__ == "__main__":
             #test_prediction = tf.nn.softmax(BiRNN(test_embeddings, tf_test_seq_length)[0])
             train_prediction = tf.nn.softmax(logits)
             valid_outputs = BiRNN(valid_embeddings, tf_valid_seq_length)
-            valid_logits_sampled, valid_labels_sampled = tf.nn._compute_sampled_logits(w_t, b, valid_outputs, valid_labels_reshaped,
-                                                                           200, target_vocab_size)
+            valid_logits_sampled, valid_labels_sampled = tf.nn._compute_sampled_logits(w_t, b, valid_outputs,
+                                                                                       valid_labels_reshaped,
+                                                                                       num_sampled,
+                                                                                       target_vocab_size)
             valid_prediction_sampled = tf.nn.softmax(valid_logits_sampled)
             test_outputs = BiRNN(test_embeddings, tf_test_seq_length)
-            test_logits_sampled, test_labels_sampled = tf.nn._compute_sampled_logits(w_t, b, valid_outputs, test_labels_reshaped,
-                                                                           200, target_vocab_size)
+            test_logits_sampled, test_labels_sampled = tf.nn._compute_sampled_logits(w_t, b, valid_outputs,
+                                                                                     test_labels_reshaped,
+                                                                                     num_sampled,
+                                                                                     target_vocab_size)
             test_prediction_sampled = tf.nn.softmax(test_logits_sampled)
 
     # Create a new batch from the training data (data, labels and sequence lengths)
@@ -318,7 +325,7 @@ if __name__ == "__main__":
               print 'Minibatch loss at step ' + str(step) + ': ' + str(l)
               print 'Minibatch accuracy: ' + str(accuracy(predictions, _labels, batch_seq_length))
               print 'Validation accuracy: ' + str(accuracy(valid_prediction_sampled.eval(), valid_labels_sampled.eval(), valid_seq_length))
-              if (args.save_path != "None"):
+              if (args.save_path != "None" and step % 25000 == 0):
                 saver.save(session, os.path.join(args.save_path, "model.ckpt"), global_step=step)
                 with open(os.path.join(args.save_path, 'src2id.pkl'), 'wb') as output:
                     pickle.dump(src2id, output, pickle.HIGHEST_PROTOCOL)
