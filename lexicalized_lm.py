@@ -73,6 +73,7 @@ if __name__ == "__main__":
         src_embeddings = session.run(model._w_in)
         src_embeddings = tf.nn.l2_normalize(src_embeddings, 1).eval()
 
+    """
     target2id = {}
     target_embeddings = {}
     with tf.Graph().as_default(), tf.Session() as session:
@@ -90,6 +91,8 @@ if __name__ == "__main__":
         id2target = model._id2word
         target_embeddings = session.run(model._w_in)
         target_embeddings = tf.nn.l2_normalize(target_embeddings, 1).eval()
+    """
+    target2id, id2target = dictionary_builder.get_target_dict(args.training_data)
 
     # Network Parameters
     learning_rate = float(args.learning_rate) # Update rate for the weights
