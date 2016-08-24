@@ -339,7 +339,7 @@ if __name__ == "__main__":
             #if (args.save_path != "None"):
             #    model.saver.save(session, os.path.join(args.save_path, "model.ckpt"), global_step=model.step)
         else:
-            saver.restore(session, os.path.join(args.save_path, "model.ckpt-29000"))
+            saver.restore(session, os.path.join(args.save_path, "model.ckpt-37000"))
             sents = []
             _inputs, _seq_length = format_data.format_data_app(app_data_list, seq_width, src2id)
             for i in range(_inputs.shape[0]):
