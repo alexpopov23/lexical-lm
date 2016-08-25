@@ -125,6 +125,7 @@ if __name__ == "__main__":
             b = tf.get_variable("proj_b", [target_vocab_size])
             scope.reuse_variables()
             train_gold_reshaped = tf.reshape(tf.transpose(tf_train_labels, [1,0,2]), [-1, target_vocab_size])
+            #TODO Use sparse_softmax_cross_entropy_with_logits to save memory
             loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, train_gold_reshaped))
             # calculate gradients, clip them and update model in separate steps
             optimizer = tf.train.GradientDescentOptimizer(learning_rate)
