@@ -169,10 +169,10 @@ if __name__ == "__main__":
             feed_dict = {tf_train_dataset : batch_input, tf_train_labels : batch_labels, tf_train_seq_length: batch_seq_length}
             _, l, predictions = session.run(
               [optimizer_t, loss, train_prediction], feed_dict=feed_dict)
-            if (step % 1000 == 0):
+            if (step % 100 == 0):
               print 'Minibatch loss at step ' + str(step) + ': ' + str(l)
               print 'Minibatch accuracy: ' + str(accuracy(predictions, batch_labels, batch_seq_length))
-              if (args.save_path != "None" and step % 25000 == 0):
+              if (args.save_path != "None" and step % 1000 == 0):
                 saver.save(session, os.path.join(args.save_path, "model.ckpt"), global_step=step)
                 with open(os.path.join(args.save_path, 'src2id.pkl'), 'wb') as output:
                     pickle.dump(src2id, output, pickle.HIGHEST_PROTOCOL)
