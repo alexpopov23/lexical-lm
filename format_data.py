@@ -58,7 +58,7 @@ def format_data_fullsoftmax(data_list, seq_width, src2id, target2id, embedding_s
         input_array = np.asarray(input_padded)
         input_data[count] = input_array
         labels_temp = []
-        for word in sent:
+        for _,word in sent:
             if word in target2id:
                 w_id = target2id[word]
                 one_hot_pos = copy.copy(empty_embedding)
