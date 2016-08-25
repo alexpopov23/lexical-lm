@@ -123,7 +123,7 @@ if __name__ == "__main__":
         W = tf.get_variable(name="W", shape=[len(src2id), word_embedding_size], initializer=tf.constant_initializer(src_embeddings),
                             trainable=True)
         tf_train_dataset = tf.placeholder(tf.int64, [batch_size, seq_width])
-        tf_train_labels = tf.placeholder(tf.int64, [batch_size, seq_width, word_embedding_size])
+        tf_train_labels = tf.placeholder(tf.float32, [batch_size, seq_width, word_embedding_size])
         tf_train_seq_length = tf.placeholder(tf.int64, [batch_size])
         tf_valid_dataset = tf.constant(valid_input, tf.int64)
         tf_valid_seq_length = tf.constant(valid_seq_length, tf.int64)
@@ -183,7 +183,7 @@ if __name__ == "__main__":
     def compute_closest_words(y):
 
         y_norm = tf.nn.l2_normalize(y, dim=1)
-        cosine_similarity = tf.matmul(y_norm, tf.transpose(train_embeddings, [1, 0]))
+        cosine_similarity = tf.matmul(y_norm, tf.transpose(target_embeddings, [1, 0]))
         closest_words = tf.argmax(cosine_similarity, 1)
 
         return closest_words
@@ -192,14 +192,19 @@ if __name__ == "__main__":
     def new_batch (offset):
 
         batch = training_data_list[offset:(offset+batch_size)]
-        train_input, train_labels, seq_length = format_data.format_data(batch, seq_width, src2id, target2id)
-        return train_input, train_labels, seq_length
+        train_input, train_labels, train_labels_ids, seq_length = format_data.format_data_embeddings(batch,
+                                                                                   seq_width,
+                                                                                   src2id,
+                                                                                   target2id,
+                                                                                   target_embeddings,
+                                                                                   word_embedding_size)
+        return train_input, train_labels, train_labels_ids, seq_length
 
     # Function to calculate the accuracy on a batch of results and gold labels '''
     def accuracy (predictions, labels, seq_lengths):
 
         reshaped_labels = np.reshape(np.transpose(labels, (1,0)), (-1,1))
-        closest_words = compute_closest_words(predictions, reshaped_labels)
+        closest_words = compute_closest_words(predictions)
         matching_cases = 0
         eval_cases = 0
         # Do not count results beyond the end of a sentence (in the case of sentences shorter than 50 words)
@@ -207,7 +212,7 @@ if __name__ == "__main__":
             for j in xrange(batch_size):
                 if i+1 > seq_lengths[j]:
                     continue
-                if closest_words[i*batch_size + j] == labels[i*batch_size + j]:
+                if closest_words[i*batch_size + j] == reshaped_labels[i*batch_size + j]:
                     matching_cases += 1
                 eval_cases += 1
         return (100.0 * matching_cases) / eval_cases
@@ -219,13 +224,14 @@ if __name__ == "__main__":
         saver = tf.train.Saver()
         for step in range(training_iters):
             offset = (step * batch_size) % (len(training_data_list) - batch_size)
-            batch_input, batch_labels, batch_seq_length = new_batch(offset)
+            batch_input, batch_labels, batch_labels_ids, batch_seq_length = new_batch(offset)
             feed_dict = {tf_train_dataset : batch_input, tf_train_labels : batch_labels, tf_train_seq_length: batch_seq_length}
-            _, l, predictions, _outputs, _logits, _labels = session.run(
+            _, l, predictions = session.run(
               [optimizer_t, cross_entropy, y], feed_dict=feed_dict)
-            if (step % 1000 == 0):
+            #true_labels = y_.eval()
+            if (step % 50 == 0):
               print 'Minibatch loss at step ' + str(step) + ': ' + str(l)
-              print 'Minibatch accuracy: ' + str(accuracy(predictions, _labels, batch_seq_length))
+              print 'Minibatch accuracy: ' + str(accuracy(predictions, batch_labels_ids, batch_seq_length))
               print 'Validation accuracy: ' + str(accuracy(valid_outputs.eval(), valid_labels_ids, valid_seq_length))
               if (args.save_path != "None" and step % 25000 == 0):
                 saver.save(session, os.path.join(args.save_path, "model.ckpt"), global_step=step)
