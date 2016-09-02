@@ -339,7 +339,7 @@ if __name__ == "__main__":
             #if (args.save_path != "None"):
             #    model.saver.save(session, os.path.join(args.save_path, "model.ckpt"), global_step=model.step)
         else:
-            saver.restore(session, os.path.join(args.save_path, "model.ckpt-4000"))
+            saver.restore(session, os.path.join(args.save_path, "model.ckpt-41000"))
             sents = []
             _inputs, _seq_length = format_data.format_data_app(app_data_list, seq_width, src2id)
             for i in range(_inputs.shape[0]):
@@ -353,11 +353,11 @@ if __name__ == "__main__":
                 print "Output sequence is: ",
                 for k in xrange(_seq_length[i]):
                     # Print the N best candidates for each word
-                    best_five = np.argsort(_predictions[k])[-5:]
-                    for candidate in best_five:
-                        print id2target[candidate] + "|",
-                    print "\n"
+                    #best_five = np.argsort(_predictions[k])[-5:]
+                    #for candidate in best_five:
+                    #    print id2target[candidate] + "|",
+                    #print "\n"
                     # Print just the top scoring candidate for each word
-                    #print id2target[np.argmax(_predictions[k])] + " ",
+                    print id2target[np.argmax(_predictions[k])] + " ",
                 print "\n"
 

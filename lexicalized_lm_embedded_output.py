@@ -169,11 +169,22 @@ if __name__ == "__main__":
             y, _outputs_tensor = BiRNN(train_embeddings, tf_train_seq_length)
             scope.reuse_variables()
             y_ = tf.reshape(tf.transpose(tf_train_labels, [1,0,2]), [-1, word_embedding_size])
-            cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(y), reduction_indices=[1]))
+
+            # CROSS ENTROPY LOSS, FOR TESTING:
+            #product = tf.nn.l2_normalize(y_, dim=1) * tf.log(tf.nn.l2_normalize(y, dim=1))
+            #sum_neg = -tf.reduce_sum(product, reduction_indices=[1])
+            #loss = tf.reduce_mean(sum_neg)
+
+            #loss = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(y), reduction_indices=[1]))
+
+            # COSINE DISTANCE LOSS, FOR TESTING:
+            y__norm = tf.nn.l2_normalize(y_, dim=1)
+            y_norm = tf.nn.l2_normalize(y, dim=1)
+            loss = tf.reduce_mean(-tf.reduce_sum(tf.mul(y__norm, y_norm), reduction_indices=[1]))
 
             # calculate gradients, clip them and update model in separate steps
             optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-            gradients = optimizer.compute_gradients(cross_entropy)
+            gradients = optimizer.compute_gradients(loss)
             capped_gradients = [(tf.clip_by_value(grad, -1, 1), var) for grad, var in gradients if grad!=None]
             optimizer_t = optimizer.apply_gradients(capped_gradients)
 
@@ -182,8 +193,9 @@ if __name__ == "__main__":
 
     def compute_closest_words(y):
 
+        target_embeddings_norm = tf.nn.l2_normalize(target_embeddings, dim=1)
         y_norm = tf.nn.l2_normalize(y, dim=1)
-        cosine_similarity = tf.matmul(y_norm, tf.transpose(target_embeddings, [1, 0]))
+        cosine_similarity = tf.matmul(y_norm, tf.transpose(target_embeddings_norm, [1, 0]))
         closest_words = tf.argmax(cosine_similarity, 1)
 
         return closest_words
@@ -226,8 +238,9 @@ if __name__ == "__main__":
             offset = (step * batch_size) % (len(training_data_list) - batch_size)
             batch_input, batch_labels, batch_labels_ids, batch_seq_length = new_batch(offset)
             feed_dict = {tf_train_dataset : batch_input, tf_train_labels : batch_labels, tf_train_seq_length: batch_seq_length}
-            _, l, predictions = session.run(
-              [optimizer_t, cross_entropy, y], feed_dict=feed_dict)
+            _, l, predictions, true_labels = session.run(
+              [optimizer_t, loss, y, y_], feed_dict=feed_dict)
+            #_cross_entropy = tf.reduce_mean(sum_neg, reduction_indices=[1])
             #true_labels = y_.eval()
             if (step % 50 == 0):
               print 'Minibatch loss at step ' + str(step) + ': ' + str(l)
